@@ -1,0 +1,314 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ==========================================
+-- STATES & CONFIGURATIONS
+-- ==========================================
+local SPEED_ENABLED = false
+local TARGET_SPEED = 60 
+local DEFAULT_SPEED = 16
+
+local currentColor = Color3.fromRGB(0, 120, 255)
+
+-- เก็บการเชื่อมต่อ Loop ไว้เพื่อล้างกระบวนการรันตอนปิดถาวร
+local SpeedConnection
+
+-- ==========================================
+-- DRAGGABLE SYSTEM
+-- ==========================================
+local function MakeDraggable(frame, handle)
+    local dragging, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- ==========================================
+-- UI CREATION (FIXED POSITIONS CENTER)
+-- ==========================================
+local mainGui = Instance.new("ScreenGui")
+mainGui.Name = "WackShop_Speed_Centered"
+mainGui.IgnoreGuiInset = true
+mainGui.ResetOnSpawn = false
+mainGui.Parent = CoreGui
+
+-- 1. หน้าต่างสคริปต์หลัก -> [แก้ไข] ขยายความสูงเพิ่มเป็น 235 เพื่อไม่ให้บังปุ่มล่างสุด
+local Main = Instance.new("Frame", mainGui)
+Main.Size = UDim2.fromOffset(180, 235) 
+Main.AnchorPoint = Vector2.new(1, 0.5)
+Main.Position = UDim2.new(1, -20, 0.5, 0)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Main.BorderSizePixel = 0
+Main.ZIndex = 10
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+local mainStroke = Instance.new("UIStroke", Main)
+mainStroke.Thickness = 1.5
+mainStroke.Color = currentColor
+
+local TitleBar = Instance.new("Frame", Main)
+TitleBar.Size = UDim2.new(1, 0, 0, 38)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 10
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 10)
+
+local TitleLabel = Instance.new("TextLabel", TitleBar)
+TitleLabel.Size = UDim2.new(1, -40, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🏃 WackShop SPEED"
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 13
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.TextColor3 = currentColor
+TitleLabel.ZIndex = 10
+
+-- ปุ่มปิดแบบถาวร (สีแดงคุมโทน ขอบมน ตัว X สีขาว ไม่มีขอบเส้น)
+local destroyBtn = Instance.new("TextButton", TitleBar)
+destroyBtn.Size = UDim2.new(0, 26, 0, 26)
+destroyBtn.Position = UDim2.new(1, -34, 0, 6)
+destroyBtn.BackgroundColor3 = Color3.fromRGB(160, 45, 45)
+destroyBtn.BorderSizePixel = 0
+destroyBtn.Text = "X"
+destroyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+destroyBtn.Font = Enum.Font.GothamBold
+destroyBtn.TextSize = 12
+destroyBtn.ZIndex = 11
+
+local btnCorner = Instance.new("UICorner", destroyBtn)
+btnCorner.CornerRadius = UDim.new(0, 6)
+
+MakeDraggable(Main, TitleBar)
+
+-- 2. ปุ่มตัว W -> อยู่ฝั่งซ้ายตรงกลางจอพอดี
+local FloatBtn = Instance.new("TextButton", mainGui)
+FloatBtn.Size = UDim2.fromOffset(44, 44)
+FloatBtn.AnchorPoint = Vector2.new(0, 0.5)
+FloatBtn.Position = UDim2.new(0, 15, 0.5, 0)
+FloatBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+FloatBtn.Text = "W"
+FloatBtn.TextSize = 18
+FloatBtn.Font = Enum.Font.GothamBold
+FloatBtn.TextColor3 = currentColor
+FloatBtn.ZIndex = 20
+Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(1, 0)
+local floatStroke = Instance.new("UIStroke", FloatBtn)
+floatStroke.Thickness = 1.5
+floatStroke.Color = currentColor
+MakeDraggable(FloatBtn, FloatBtn)
+
+-- ฟังก์ชันเมื่อกดปุ่มปิดถาวร (ลบสคริปต์ คืนค่าระบบ)
+destroyBtn.MouseButton1Click:Connect(function()
+    SPEED_ENABLED = false
+    
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then 
+        hum.WalkSpeed = DEFAULT_SPEED 
+    end
+    
+    if SpeedConnection then
+        SpeedConnection:Disconnect()
+    end
+    
+    mainGui:Destroy()
+    print("❌ WackShop SPEED ถูกปิดใช้งานถาวรเรียบร้อยแล้ว!")
+end)
+
+-- ปุ่มแฟลชสำหรับการย่อ/ขยายหน้าต่างหลัก
+FloatBtn.MouseButton1Click:Connect(function() 
+    Main.Visible = not Main.Visible 
+end)
+
+-- ==========================================
+-- COMPONENTS CREATOR
+-- ==========================================
+local ToggleBtn = Instance.new("TextButton", Main)
+ToggleBtn.Size = UDim2.new(0, 155, 0, 30)
+ToggleBtn.Position = UDim2.new(0, 12, 0, 50)
+ToggleBtn.Font = Enum.Font.GothamSemibold
+ToggleBtn.TextSize = 12
+ToggleBtn.BorderSizePixel = 0
+ToggleBtn.ZIndex = 10
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6)
+
+local function updateToggleStyle()
+    ToggleBtn.BackgroundColor3 = SPEED_ENABLED and Color3.fromRGB(30, 160, 90) or Color3.fromRGB(160, 45, 45)
+    ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleBtn.Text = "ระบบวิ่งเร็ว" .. (SPEED_ENABLED and "  ✅" or "  ❌")
+end
+updateToggleStyle()
+
+-- ปุ่มลบละเอียด (- 1)
+local TinyMinusBtn = Instance.new("TextButton", Main)
+TinyMinusBtn.Size = UDim2.fromOffset(28, 26)
+TinyMinusBtn.Position = UDim2.fromOffset(12, 90)
+TinyMinusBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+TinyMinusBtn.Font = Enum.Font.GothamBold
+TinyMinusBtn.TextSize = 16
+TinyMinusBtn.TextColor3 = Color3.fromRGB(255, 120, 120)
+TinyMinusBtn.Text = "-"
+TinyMinusBtn.ZIndex = 11
+Instance.new("UICorner", TinyMinusBtn).CornerRadius = UDim.new(0, 5)
+
+-- ช่องพิมพ์ตัวเลขตรงกลาง
+local SpeedInputBox = Instance.new("TextBox", Main)
+SpeedInputBox.Size = UDim2.new(0, 95, 0, 26)
+SpeedInputBox.Position = UDim2.new(0, 43, 0, 90)
+SpeedInputBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+SpeedInputBox.Font = Enum.Font.GothamBold
+SpeedInputBox.TextSize = 12
+SpeedInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedInputBox.Text = tostring(TARGET_SPEED)
+SpeedInputBox.ClearTextOnFocus = false
+SpeedInputBox.ZIndex = 11
+Instance.new("UICorner", SpeedInputBox).CornerRadius = UDim.new(0, 5)
+local labelStroke = Instance.new("UIStroke", SpeedInputBox)
+labelStroke.Color = Color3.fromRGB(40, 40, 50)
+labelStroke.Thickness = 1
+
+-- ปุ่มบวกละเอียด (+ 1)
+local TinyPlusBtn = Instance.new("TextButton", Main)
+TinyPlusBtn.Size = UDim2.fromOffset(28, 26)
+TinyPlusBtn.Position = UDim2.fromOffset(141, 90)
+TinyPlusBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+TinyPlusBtn.Font = Enum.Font.GothamBold
+TinyPlusBtn.TextSize = 14
+TinyPlusBtn.TextColor3 = Color3.fromRGB(120, 255, 120)
+TinyPlusBtn.Text = "+"
+TinyPlusBtn.ZIndex = 11
+Instance.new("UICorner", TinyPlusBtn).CornerRadius = UDim.new(0, 5)
+
+-- ปุ่มแถวล่าง 1 (-10 / +10)
+local MinusBtn = Instance.new("TextButton", Main)
+MinusBtn.Size = UDim2.fromOffset(72, 26)
+MinusBtn.Position = UDim2.fromOffset(12, 125)
+MinusBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+MinusBtn.Font = Enum.Font.GothamBold
+MinusBtn.TextSize = 13
+MinusBtn.TextColor3 = Color3.fromRGB(255, 120, 120)
+MinusBtn.Text = "- 10"
+MinusBtn.ZIndex = 10
+Instance.new("UICorner", MinusBtn).CornerRadius = UDim.new(0, 5)
+
+local PlusBtn = Instance.new("TextButton", Main)
+PlusBtn.Size = UDim2.fromOffset(72, 26)
+PlusBtn.Position = UDim2.fromOffset(95, 125)
+PlusBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+PlusBtn.Font = Enum.Font.GothamBold
+PlusBtn.TextSize = 13
+PlusBtn.TextColor3 = Color3.fromRGB(120, 255, 120)
+PlusBtn.Text = "+ 10"
+PlusBtn.ZIndex = 10
+Instance.new("UICorner", PlusBtn).CornerRadius = UDim.new(0, 5)
+
+-- ปุ่มแถวล่าง 2 (-100 / +100)
+local Minus100Btn = Instance.new("TextButton", Main)
+Minus100Btn.Size = UDim2.fromOffset(72, 26)
+Minus100Btn.Position = UDim2.fromOffset(12, 160)
+Minus100Btn.BackgroundColor3 = Color3.fromRGB(45, 25, 30)
+Minus100Btn.Font = Enum.Font.GothamBold
+Minus100Btn.TextSize = 13
+Minus100Btn.TextColor3 = Color3.fromRGB(255, 60, 60)
+Minus100Btn.Text = "- 100"
+Minus100Btn.ZIndex = 10
+Instance.new("UICorner", Minus100Btn).CornerRadius = UDim.new(0, 5)
+
+local Plus100Btn = Instance.new("TextButton", Main)
+Plus100Btn.Size = UDim2.fromOffset(72, 26)
+Plus100Btn.Position = UDim2.fromOffset(95, 160)
+Plus100Btn.BackgroundColor3 = Color3.fromRGB(25, 45, 30)
+Plus100Btn.Font = Enum.Font.GothamBold
+Plus100Btn.TextSize = 13
+Plus100Btn.TextColor3 = Color3.fromRGB(60, 255, 60)
+Plus100Btn.Text = "+ 100"
+Plus100Btn.ZIndex = 10
+Instance.new("UICorner", Plus100Btn).CornerRadius = UDim.new(0, 5)
+
+-- ==========================================
+-- INTERACTION LOGIC
+-- ==========================================
+local function updateBoxText()
+    SpeedInputBox.Text = tostring(TARGET_SPEED)
+end
+
+SpeedInputBox.FocusLost:Connect(function(enterPressed)
+    local inputNum = tonumber(SpeedInputBox.Text)
+    if inputNum then
+        TARGET_SPEED = math.max(0, inputNum)
+    end
+    updateBoxText()
+end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    SPEED_ENABLED = not SPEED_ENABLED
+    updateToggleStyle()
+    if not SPEED_ENABLED then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = DEFAULT_SPEED end
+    end
+end)
+
+TinyMinusBtn.MouseButton1Click:Connect(function()
+    TARGET_SPEED = math.max(0, TARGET_SPEED - 1)
+    updateBoxText()
+end)
+
+TinyPlusBtn.MouseButton1Click:Connect(function()
+    TARGET_SPEED = TARGET_SPEED + 1
+    updateBoxText()
+end)
+
+MinusBtn.MouseButton1Click:Connect(function()
+    TARGET_SPEED = math.max(0, TARGET_SPEED - 10)
+    updateBoxText()
+end)
+
+PlusBtn.MouseButton1Click:Connect(function()
+    TARGET_SPEED = TARGET_SPEED + 10
+    updateBoxText()
+end)
+
+Minus100Btn.MouseButton1Click:Connect(function()
+    TARGET_SPEED = math.max(0, TARGET_SPEED - 100)
+    updateBoxText()
+end)
+
+Plus100Btn.MouseButton1Click:Connect(function()
+    TARGET_SPEED = TARGET_SPEED + 100
+    updateBoxText()
+end)
+
+-- ==========================================
+-- CORE LOGIC
+-- ==========================================
+SpeedConnection = RunService.Stepped:Connect(function()
+    if SPEED_ENABLED then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum and hum.WalkSpeed ~= TARGET_SPEED then
+            hum.WalkSpeed = TARGET_SPEED
+        end
+    end
+end)
+
+print("✅ WackShop SPEED CENTERED POSITION Loaded successfully!")
